@@ -1,8 +1,16 @@
 #include <Servo.h>
 
-Servo myservo;
+// Initialize PWM signals
+Servo motor1;
+Servo motor2;
 
-const int potPin = 0;
+// Set analog input pins for potentiometers
+const int potPin1 = 0;
+const int potPin2 = 1;
+
+
+const int output1 = 5;
+const int output2 = 6;
 
 int potInput = 0;
 float pwmValue = 0;
