@@ -20,15 +20,42 @@ int potInput2 = 0;
 int outputVal1 = 90;
 int outputVal2 = 90;
 
+// Stores mode selection switch value
+int modeSwitch = 0;
+
+// Names mode switch input pins
+const int independent = 8;
+const int sync = 9;
+const int syncReverse = 10;
+const int sweep = 11;
+const int sweepReverse = 12;
+const int servo = 13;
+struct modePins{
+  int independent;
+  int sync;
+  int syncReverse;
+  int sweep;
+  int sweepReverse;
+  int servo;
+};
+const modePins modePins = {independent, sync, syncReverse, sweep, sweepReverse, servo};
+
 // For limiting serial output to a low frequency
 unsigned long updateLast = 0;
 unsigned long updateCurrent = 0;
 int serialDelay = 2000; // Waits this many milliseconds between data outputs
 
 void setup() {
+  Serial.begin(9600);
+  
+  // Initialize PWM outputs
   motor1.attach(outputPin1, 678, 2310);
   motor2.attach(outputPin2, 678, 2310);
-  Serial.begin(9600);
+
+  // Initialize mode switch input pins, "for loop" uses less memory
+  for (int iii=8; iii<14; iii++) {
+    pinMode(iii, INPUT);
+  }
 }
 
 void loop() {
@@ -43,6 +70,9 @@ void loop() {
   // Writes output values
   motor1.write(outputVal1);
   motor2.write(outputVal2);
+  
+  // Reads mode selector switch
+  modeSwitch = modeSwitchRead();
   
   // Prints data for debugging
   updateLast = printAnalog(potInput1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
@@ -71,3 +101,15 @@ unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateC
   return updateLast;
 }
 
+int modeSwitchRead() {
+  for (int iii=8; iii<14; iii++) {
+    if (digitalRead(iii) == 1) {
+      int modeSwitch = iii;
+    }
+  }
+  return modeSwitch;
+}
+
+int setMode(int modeSwitch, struct modePins) {
+  
+}
