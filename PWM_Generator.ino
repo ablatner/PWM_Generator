@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include "C:\Users\Andew\Documents\GitHub\PWM_Generator\ModePins.h"
 
 // Initialize PWM signals
 Servo motor1;
@@ -23,23 +24,6 @@ int outputVal2 = 90;
 // Stores mode selection switch value
 int modeSwitch = 0;
 
-// Names mode switch input pins
-const int independent = 8;
-const int sync = 9;
-const int syncReverse = 10;
-const int sweep = 11;
-const int sweepReverse = 12;
-const int servo = 13;
-struct modePins{
-  int independent;
-  int sync;
-  int syncReverse;
-  int sweep;
-  int sweepReverse;
-  int servo;
-};
-const modePins modePins = {independent, sync, syncReverse, sweep, sweepReverse, servo};
-
 // For limiting serial output to a low frequency
 unsigned long updateLast = 0;
 unsigned long updateCurrent = 0;
@@ -53,7 +37,7 @@ void setup() {
   motor2.attach(outputPin2, 678, 2310);
 
   // Initialize mode switch input pins, "for loop" uses less memory
-  for (int iii=8; iii<14; iii++) {
+  for (int iii=startPin+1; iii<endPin; iii++) { // startPin and endPin are from ModePins.h
     pinMode(iii, INPUT);
   }
 }
@@ -110,6 +94,14 @@ int modeSwitchRead() {
   return modeSwitch;
 }
 
-int setMode(int modeSwitch, struct modePins) {
-  
+int setMode(int modeSwitch, modePins modes) {
+  switch (modeSwitch) {
+    case independentMode:
+      break;
+    case syncMode:
+    case syncReverseMode:
+    case sweepMode:
+    case 
+    case
+  }
 }
