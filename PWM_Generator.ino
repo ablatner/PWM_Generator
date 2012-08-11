@@ -1,5 +1,8 @@
 #include <Servo.h>
-#include "C:\Users\Andew\Documents\GitHub\PWM_Generator\ModePins.h"
+#include "ModePins.h"
+
+// Set up mode switch input pin enumerator
+modePins modes;
 
 // Initialize PWM signals
 Servo motor1;
@@ -37,7 +40,7 @@ void setup() {
   motor2.attach(outputPin2, 678, 2310);
 
   // Initialize mode switch input pins, "for loop" uses less memory
-  for (int iii=startPin+1; iii<endPin; iii++) { // startPin and endPin are from ModePins.h
+  for (int iii=startPin; iii<=endPin; iii++) { // startPin and endPin are from ModePins.h
     pinMode(iii, INPUT);
   }
 }
@@ -57,6 +60,9 @@ void loop() {
   
   // Reads mode selector switch
   modeSwitch = modeSwitchRead();
+  
+  outputVal1 = primarySetMode(modeSwitch, outputVal1, modes);
+  outputVal2 = secondarySetMode(modeSwitch, outputVal1, outputVal2, modes);
   
   // Prints data for debugging
   updateLast = printAnalog(potInput1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
@@ -86,7 +92,7 @@ unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateC
 }
 
 int modeSwitchRead() {
-  for (int iii=8; iii<14; iii++) {
+  for (int iii=startPin; iii<=endPin; iii++) {
     if (digitalRead(iii) == 1) {
       int modeSwitch = iii;
     }
@@ -94,14 +100,51 @@ int modeSwitchRead() {
   return modeSwitch;
 }
 
-int setMode(int modeSwitch, modePins modes) {
+int primarySetMode(int modeSwitch, int outputVal1, modePins modes) {
   switch (modeSwitch) {
     case independentMode:
+      return smoothMode(outputVal1);
       break;
     case syncMode:
+      return smoothMode(outputVal1);
+      break;
     case syncReverseMode:
+      return smoothMode(outputVal1);
+      break;
     case sweepMode:
-    case 
-    case
+      return sweepMode(outputVal1);
+    case sweepReverseMode:
+    case servoMode:
+      break;
   }
+}
+
+int secondarySetMode(int modeSwitch, int outputVal1, int outputVal2, modePins modes) {
+  switch (modeSwitch) {
+    case independentMode:
+      return smoothMode(outputVal2);
+      break;
+    case syncMode:
+      return outputVal1;
+      break;
+    case syncReverseMode:
+      return reverseMode(outputVal1);
+      break;
+    case sweepMode:
+      return sweepMode(outputVal2);
+      break;
+    case sweepReverseMode:
+      return reverseMode(sweepMode(outputVal2));
+      break;
+    case servoMode:
+      break;
+  }
+}
+
+int reverseMode(int outputVal) {
+  return (180-outputVal);
+}
+
+int sweepMode(int outputVal) {
+  return outputVal;
 }
