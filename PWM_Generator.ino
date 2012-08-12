@@ -9,22 +9,24 @@ Servo motor2;
 const int potPin1 = 0;
 const int potPin2 = 1;
 
-// Set PWM output pins
-const int outputPin1 = 5;
-const int outputPin2 = 6;
-
 // Stores raw potentiometer readings
 int potVal1 = 0;
 int potVal2 = 0;
+
+// Set PWM output pins
+const int outputPin1 = 5;
+const int outputPin2 = 6;
 
 // Stores output "angles" for the servo library, set to 90 because that's neutral
 int outputVal1 = 90;
 int outputVal2 = 90;
 
 // Stores setting of mode selections switches
-int syncSwitch = 0;
-int reverseSwitch = 0;
-int functionSwitch = 0;
+int modeSwitch = 0;
+
+// For smoothing
+int lastOutput1 = 0;
+int lastOutput2 = 0;
 
 // For limiting serial output to a low frequency
 unsigned long updateLast = 0;
@@ -57,20 +59,11 @@ void loop() {
   motor1.write(outputVal1);
   motor2.write(outputVal2);
   
-  // Reads mode selector switch
-  syncSwitch = modeSwitchRead(syncMode1, syncMode2);
-  reverseSwitch = modeSwitchRead(reverseMode, reverseMode);
-  functionSwitch = modeSwitchRead(normalMode, servoMode);
+  // Sets mode
+  outputVal1 = setMode(modeSwitch, outputVal1, outputVal2, 1);
+  outputVal2 = setMode(modeSwitch, outputVal1, outputVal2, 2);
   
-  // Sets function, like normal, sweep, servo
-//  outputVal1 = setFunction(functionSwitch, outputVal1);
-//  outputVal2 = setFunction(functionSwitch, outputVal2);
-  
-  // Changes output according to sync and reverse switches
-  outputVal1 = setSync(syncSwitch, reverseSwitch, outputVal1, outputVal2);
-  outputVal2 = setSync(syncSwitch, reverseSwitch, outputVal2, outputVal1);
-
-  
+  // Changes output according to sync and reverse switches  
 
   // Prints data for debugging
   updateLast = printAnalog(potVal1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
@@ -109,32 +102,62 @@ int modeSwitchRead(int firstPin, int lastPin) { // Set first and last pins it re
   return modeSwitch;
 }
 
-//int setFunction(int functionSwitch, outputVal
-
-int setSync(int syncSwitch, int reverseSwitch, int primaryOutput, int secondaryOutput) {
-  switch (syncSwitch) {
-    case 0:
-      return primaryOutput;
-      break;
-    case syncMode1:
-      if (reverseSwitch == reverseMode)
-        return reverseOutput(primaryOutput);
-      else
-        return primaryOutput;
-      break;
-    case syncMode2:
-      if (reverseSwitch == reverseMode)
-        return reverseOutput(secondaryOutput);
-      else
-        return secondaryOutput;
-      break;
+int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
+  switch (outputSelect) {
+    case 1:
+      switch (modeSwitch) {
+        case independentMode:
+          return outputVal1;
+          break;
+        case syncMode:
+          return outputVal1;
+          break;
+        case syncReverseMode:
+          return outputVal1;
+          break;
+        case sweepMode:
+          return sweepOutput(outputVal1);
+          break;
+        case sweepReverseMode:
+          return sweepOutput(outputVal1);
+          break;
+        case servoMode:
+          return servoOutput(outputVal1);
+          break;
+      }
+    case 2:
+      switch (modeSwitch) {
+        case independentMode:
+          return outputVal2;
+          break;
+        case syncMode:
+          return outputVal1;
+          break;
+        case syncReverseMode:
+          return reverseOutput(outputVal1);
+          break;
+        case sweepMode:
+          return sweepOutput(outputVal1);
+          break;
+        case sweepReverseMode:
+          return reverseOutput(sweepOutput(outputVal1));
+          break;
+        case servoMode:
+          return servoOutput(outputVal2);
+          break;
+      }
   }
 }
 
 int reverseOutput(int outputVal) {
   return (180-outputVal);
 }
-
+  
 int sweepOutput(int outputVal) {
+  float time = millis();
+  return map(sin(6.28*time/(float)outputVal), -1, 1, 0, 180);
+}
+
+int servoOutput(int outputVal) {
   return outputVal;
 }
