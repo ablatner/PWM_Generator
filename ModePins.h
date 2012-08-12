@@ -1,10 +1,10 @@
 typedef enum {
   startPin = 8,
-  independentMode = 8,
-  syncMode = 9,
-  syncReverseMode = 10,
-  sweepMode = 11,
-  sweepReverseMode = 12,
+  syncMode1 = 8, 
+  syncMode2 = 9,
+  reverseMode = 10,
+  normalMode = 11,
+  sweepMode = 12,
   servoMode = 13,
   endPin = 13
 } modePins;
