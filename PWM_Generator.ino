@@ -34,10 +34,27 @@ int modeSwitch = 0;
 int lastOutput1 = 90;
 int lastOutput2 = 90;
 
-// For limiting serial output to a low frequency
-unsigned long updateLast = 0;
-unsigned long updateCurrent = 0;
-int serialDelay = 400; // Waits this many milliseconds between data outputs
+//// For limiting serial output to a low frequency
+//unsigned long updateLast = 0;
+//unsigned long updateCurrent = 0;
+//int serialDelay = 400; // Waits this many milliseconds between data outputs
+//
+//// Prints both raw analog values and actual output values over serial, for debugging
+//// Updates if current time minus last time is greater than the delay time
+//// Only resets delay timer when "resetDelayTimer" is true
+//// Set which motor, input, and output number is displayed with "textNumber"
+//unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
+//  updateCurrent = millis();
+//  if (updateCurrent - updateLast > Delay) {
+//    Serial.print("---- Data for output ");Serial.print(textNumber);Serial.println(" ----");    
+//    Serial.print("Analog input = ");Serial.println(analogInput);
+//    Serial.print("Output angle = ");Serial.println(servoAngle);
+//    Serial.println();
+//    if (resetDelayTimer == 1)
+//      updateLast = updateCurrent;
+//  }
+//  return updateLast;
+//}
 
 void setup() {
   Serial.begin(9600);
@@ -73,8 +90,8 @@ void loop() {
   outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
 
   // Prints data for debugging
-  updateLast = printAnalog(potVal1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
-  updateLast = printAnalog(potVal2, outputVal2, updateCurrent, updateLast, serialDelay, 1, 2);
+//  updateLast = printAnalog(potVal1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
+//  updateLast = printAnalog(potVal2, outputVal2, updateCurrent, updateLast, serialDelay, 1, 2);
 
   // Writes output values
   motor1.write(outputVal1);
@@ -85,23 +102,6 @@ void loop() {
   lastOutput2 = outputVal2;
 
   delay(cycleTime);
-}
-
-// Prints both raw analog values and actual output values over serial, for debugging
-// Updates if current time minus last time is greater than the delay time
-// Only resets delay timer when "resetDelayTimer" is true
-// Set which motor, input, and output number is displayed with "textNumber"
-unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
-  updateCurrent = millis();
-  if (updateCurrent - updateLast > Delay) {
-    Serial.print("---- Data for output ");Serial.print(textNumber);Serial.println(" ----");    
-    Serial.print("Analog input = ");Serial.println(analogInput);
-    Serial.print("Output angle = ");Serial.println(servoAngle);
-    Serial.println();
-    if (resetDelayTimer == 1)
-      updateLast = updateCurrent;
-  }
-  return updateLast;
 }
 
 int modeSwitchRead(int firstPin, int lastPin) { // Set first and last pins it reads from, iteratively reads from pins between them
