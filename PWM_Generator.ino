@@ -1,5 +1,11 @@
 #include <Servo.h>
 #include "ModePins.h"
+#include "Signum.h"
+
+// Sets cycle time
+int maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
+int maxChangePerCycle = 1;
+int cycleTime = ceil(1000.0/(float)maxChangePerSecond*(float)maxChangePerCycle);
 
 // Initialize PWM signals
 Servo motor1;
@@ -9,9 +15,9 @@ Servo motor2;
 const int potPin1 = 0;
 const int potPin2 = 1;
 
-// Stores raw potentiometer readings
-int potVal1 = 0;
-int potVal2 = 0;
+// Stores raw potentiometer readings, set to 512 because that's neutral
+int potVal1 = 512;
+int potVal2 = 512;
 
 // Set PWM output pins
 const int outputPin1 = 5;
@@ -24,14 +30,14 @@ int outputVal2 = 90;
 // Stores setting of mode selections switches
 int modeSwitch = 0;
 
-// For smoothing
-int lastOutput1 = 0;
-int lastOutput2 = 0;
+// For smoothing, set to 90 because that's neutral
+int lastOutput1 = 90;
+int lastOutput2 = 90;
 
 // For limiting serial output to a low frequency
 unsigned long updateLast = 0;
 unsigned long updateCurrent = 0;
-int serialDelay = 2000; // Waits this many milliseconds between data outputs
+int serialDelay = 400; // Waits this many milliseconds between data outputs
 
 void setup() {
   Serial.begin(9600);
@@ -50,24 +56,35 @@ void loop() {
   // Gets potentiometer values
   potVal1 = analogRead(potPin1);
   potVal2 = analogRead(potPin2);
-  
+
   // Maps potentiometer values to the servo angle from 0 to 180
-  outputVal1 = map(potVal1, 0, 1023, 0, 180);
-  outputVal2 = map(potVal2, 0, 1023, 0, 180);
- 
-  // Writes output values
-  motor1.write(outputVal1);
-  motor2.write(outputVal2);
+  outputVal1 = map(potVal1, 0, 1023, 0, 181);
+  outputVal2 = map(potVal2, 0, 1023, 0, 181);
+
+  // Reads mode switch
+  modeSwitch = modeSwitchRead(startPin, endPin);
   
   // Sets mode
   outputVal1 = setMode(modeSwitch, outputVal1, outputVal2, 1);
   outputVal2 = setMode(modeSwitch, outputVal1, outputVal2, 2);
-  
-  // Changes output according to sync and reverse switches  
+
+  // Output smoothing
+  outputVal1 = smooth(outputVal1, lastOutput1, maxChangePerCycle);
+  outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
 
   // Prints data for debugging
   updateLast = printAnalog(potVal1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
-  updateLast = printAnalog(potVal2, outputVal2, updateCurrent, updateLast, serialDelay, 1, 2);  
+  updateLast = printAnalog(potVal2, outputVal2, updateCurrent, updateLast, serialDelay, 1, 2);
+
+  // Writes output values
+  motor1.write(outputVal1);
+  motor2.write(outputVal2);
+
+  // Sets last output
+  lastOutput1 = outputVal1;
+  lastOutput2 = outputVal2;
+
+  delay(cycleTime);
 }
 
 // Prints both raw analog values and actual output values over serial, for debugging
@@ -77,17 +94,12 @@ void loop() {
 unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
   updateCurrent = millis();
   if (updateCurrent - updateLast > Delay) {
-    Serial.print("---- Data for output ");
-    Serial.print(textNumber);
-    Serial.println(" ----");    
-    Serial.print("Analog input = ");
-    Serial.println(analogInput);
-    Serial.print("Output angle = ");
-    Serial.println(servoAngle);
+    Serial.print("---- Data for output ");Serial.print(textNumber);Serial.println(" ----");    
+    Serial.print("Analog input = ");Serial.println(analogInput);
+    Serial.print("Output angle = ");Serial.println(servoAngle);
     Serial.println();
-    if (resetDelayTimer == 1) {
+    if (resetDelayTimer == 1)
       updateLast = updateCurrent;
-    }
   }
   return updateLast;
 }
@@ -95,14 +107,13 @@ unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateC
 int modeSwitchRead(int firstPin, int lastPin) { // Set first and last pins it reads from, iteratively reads from pins between them
   int modeSwitch = 0;
   for (int iii=firstPin; iii<=lastPin; iii++) {
-    if (digitalRead(iii) == 1) {
+    if (digitalRead(iii) == 1)
       int modeSwitch = iii;
-    }
   }
   return modeSwitch;
 }
 
-int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
+int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {  
   switch (outputSelect) {
     case 1:
       switch (modeSwitch) {
@@ -124,6 +135,8 @@ int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
         case servoMode:
           return servoOutput(outputVal1);
           break;
+        default:
+          return outputVal1;
       }
     case 2:
       switch (modeSwitch) {
@@ -145,6 +158,8 @@ int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
         case servoMode:
           return servoOutput(outputVal2);
           break;
+        default:
+          return outputVal2;
       }
   }
 }
@@ -161,3 +176,11 @@ int sweepOutput(int outputVal) {
 int servoOutput(int outputVal) {
   return outputVal;
 }
+
+int smooth(int outputVal, int lastOutput, int maxChangePerCycle) {
+  if (fabs(outputVal-lastOutput) < maxChangePerCycle)
+    return outputVal;
+  else
+    return lastOutput+sign(outputVal-lastOutput)*maxChangePerCycle;
+}
+
