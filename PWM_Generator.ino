@@ -12,6 +12,8 @@ const float minSweepTime =5000;
 const float maxSweepTime = 60000.0;
 const float sweepInputMultiplier = (maxSweepTime-minSweepTime)/180.0;
 
+const int neutralRange = 15; // Range above or below the pot input that corresponds to neutral, means that 520 would still be neutral
+
 // Initialize PWM signals
 Servo motor1;
 Servo motor2;
@@ -55,10 +57,10 @@ int serialDelay = 400; // Waits this many milliseconds between data outputs
 unsigned long printAnalog(int analogInput, int servoAngle, int modeSwitch, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
   updateCurrent = millis();
   if (updateCurrent - updateLast > Delay) {
-    Serial.print("-");Serial.println(textNumber);
-    Serial.print("M ");Serial.println(modeSwitch);
+//    Serial.print("-");Serial.println(textNumber);
+//    Serial.print("M ");Serial.println(modeSwitch);
     Serial.print("I ");Serial.println(analogInput);
-    Serial.print("O ");Serial.println(servoAngle);
+//    Serial.print("O ");Serial.println(servoAngle);
     Serial.println();
     if (resetDelayTimer == 1)
       updateLast = updateCurrent;
@@ -82,7 +84,11 @@ void setup() {
 void loop() {
   // Gets potentiometer values
   potVal1 = analogRead(potPin1);
+  if ((potVal1-512 < neutralRange) && (-neutralRange < potVal1-512)) // Easily set to neutral
+    potVal1 = 512;
   potVal2 = analogRead(potPin2);
+  if ((potVal2-512 < neutralRange) && (-neutralRange < potVal2-512))
+    potVal2 = 512;
 
   // Maps potentiometer values to the servo angle from 0 to 180
   mapVal1 = map(potVal1, 0, 1023, 0, 181);
@@ -100,7 +106,7 @@ void loop() {
   outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
 
   // Prints data for debugging
-//  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateCurrent, updateLast, serialDelay, 0, 1);
+  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateCurrent, updateLast, serialDelay, 1, 1);
 //  updateLast = printAnalog(potVal2, outputVal2, modeSwitch, updateCurrent, updateLast, serialDelay, 1, 2);
 
   // Writes output values
