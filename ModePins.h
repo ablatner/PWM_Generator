@@ -6,6 +6,6 @@ typedef enum {
   sweepMode = 11,
   sweepReverseMode = 12,
   servoMode = 13,
-  endPin = 13
+  endPin = 12
 } modePins;
 

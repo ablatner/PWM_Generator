@@ -7,6 +7,11 @@ int maxChangePerSecond = 180; // max motor speed change per second on the 0-180 
 int maxChangePerCycle = 1;
 int cycleTime = ceil(1000.0/(float)maxChangePerSecond*(float)maxChangePerCycle);
 
+// Sweep parameters
+const float minSweepTime =5000;
+const float maxSweepTime = 60000.0;
+const float sweepInputMultiplier = (maxSweepTime-minSweepTime)/180.0;
+
 // Initialize PWM signals
 Servo motor1;
 Servo motor2;
@@ -23,6 +28,10 @@ int potVal2 = 512;
 const int outputPin1 = 5;
 const int outputPin2 = 6;
 
+// Stores value after mapping
+int mapVal1 = 90;
+int mapVal2 = 90;
+
 // Stores output "angles" for the servo library, set to 90 because that's neutral
 int outputVal1 = 90;
 int outputVal2 = 90;
@@ -34,27 +43,28 @@ int modeSwitch = 0;
 int lastOutput1 = 90;
 int lastOutput2 = 90;
 
-//// For limiting serial output to a low frequency
-//unsigned long updateLast = 0;
-//unsigned long updateCurrent = 0;
-//int serialDelay = 400; // Waits this many milliseconds between data outputs
-//
-//// Prints both raw analog values and actual output values over serial, for debugging
-//// Updates if current time minus last time is greater than the delay time
-//// Only resets delay timer when "resetDelayTimer" is true
-//// Set which motor, input, and output number is displayed with "textNumber"
-//unsigned long printAnalog(int analogInput, int servoAngle, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
-//  updateCurrent = millis();
-//  if (updateCurrent - updateLast > Delay) {
-//    Serial.print("---- Data for output ");Serial.print(textNumber);Serial.println(" ----");    
-//    Serial.print("Analog input = ");Serial.println(analogInput);
-//    Serial.print("Output angle = ");Serial.println(servoAngle);
-//    Serial.println();
-//    if (resetDelayTimer == 1)
-//      updateLast = updateCurrent;
-//  }
-//  return updateLast;
-//}
+// For limiting serial output to a low frequency
+unsigned long updateLast = 0;
+unsigned long updateCurrent = 0;
+int serialDelay = 400; // Waits this many milliseconds between data outputs
+
+// Prints both raw analog values and actual output values over serial, for debugging
+// Updates if current time minus last time is greater than the delay time
+// Only resets delay timer when "resetDelayTimer" is true
+// Set which motor, input, and output number is displayed with "textNumber"
+unsigned long printAnalog(int analogInput, int servoAngle, int modeSwitch, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
+  updateCurrent = millis();
+  if (updateCurrent - updateLast > Delay) {
+    Serial.print("-");Serial.println(textNumber);
+    Serial.print("M ");Serial.println(modeSwitch);
+    Serial.print("I ");Serial.println(analogInput);
+    Serial.print("O ");Serial.println(servoAngle);
+    Serial.println();
+    if (resetDelayTimer == 1)
+      updateLast = updateCurrent;
+  }
+  return updateLast;
+}
 
 void setup() {
   Serial.begin(9600);
@@ -65,7 +75,7 @@ void setup() {
 
   // Initialize mode switch input pins, "for loop" uses less memory
   for (int iii=startPin; iii<=endPin; iii++) { // startPin and endPin are from ModePins.h
-    pinMode(iii, INPUT);
+    pinMode(iii, INPUT_PULLUP);
   }
 }
 
@@ -75,23 +85,23 @@ void loop() {
   potVal2 = analogRead(potPin2);
 
   // Maps potentiometer values to the servo angle from 0 to 180
-  outputVal1 = map(potVal1, 0, 1023, 0, 181);
-  outputVal2 = map(potVal2, 0, 1023, 0, 181);
+  mapVal1 = map(potVal1, 0, 1023, 0, 181);
+  mapVal2 = map(potVal2, 0, 1023, 0, 181);
 
   // Reads mode switch
   modeSwitch = modeSwitchRead(startPin, endPin);
   
   // Sets mode
-  outputVal1 = setMode(modeSwitch, outputVal1, outputVal2, 1);
-  outputVal2 = setMode(modeSwitch, outputVal1, outputVal2, 2);
+  outputVal1 = setMode(modeSwitch, mapVal1, mapVal2, 1);
+  outputVal2 = setMode(modeSwitch, mapVal1, mapVal2, 2);
 
   // Output smoothing
   outputVal1 = smooth(outputVal1, lastOutput1, maxChangePerCycle);
   outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
 
   // Prints data for debugging
-//  updateLast = printAnalog(potVal1, outputVal1, updateCurrent, updateLast, serialDelay, 0, 1);
-//  updateLast = printAnalog(potVal2, outputVal2, updateCurrent, updateLast, serialDelay, 1, 2);
+//  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateCurrent, updateLast, serialDelay, 0, 1);
+//  updateLast = printAnalog(potVal2, outputVal2, modeSwitch, updateCurrent, updateLast, serialDelay, 1, 2);
 
   // Writes output values
   motor1.write(outputVal1);
@@ -104,11 +114,11 @@ void loop() {
   delay(cycleTime);
 }
 
-int modeSwitchRead(int firstPin, int lastPin) { // Set first and last pins it reads from, iteratively reads from pins between them
-  int modeSwitch = 0;
-  for (int iii=firstPin; iii<=lastPin; iii++) {
-    if (digitalRead(iii) == 1)
-      int modeSwitch = iii;
+int modeSwitchRead(int startPin, int endPin) { // Set first and last pins it reads from, iteratively reads from pins between them
+  int modeSwitch = -1; // If returns, -1, read error
+  for (int iii=startPin; iii<=endPin; iii++) {
+    if (digitalRead(iii) == 0)
+      modeSwitch = iii;
   }
   return modeSwitch;
 }
@@ -152,7 +162,7 @@ int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
         case sweepMode:
           return sweepOutput(outputVal1);
           break;
-        case sweepReverseMode:
+        case sweepReverseMode: // CHANGE TO SWEEP SYNC?
           return reverseOutput(sweepOutput(outputVal1));
           break;
         case servoMode:
@@ -170,7 +180,9 @@ int reverseOutput(int outputVal) {
   
 int sweepOutput(int outputVal) {
   float time = millis();
-  return map(sin(6.28*time/(float)outputVal), -1, 1, 0, 180);
+  outputVal = 1000*sin(6.28*time/(minSweepTime+(float)outputVal*sweepInputMultiplier));
+  outputVal = map(outputVal, -1000, 1000, 0, 180);
+  return outputVal;
 }
 
 int servoOutput(int outputVal) {
