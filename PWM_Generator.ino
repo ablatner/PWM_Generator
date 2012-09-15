@@ -8,11 +8,11 @@ int maxChangePerCycle = 1; // probably should just leave at 1, for max resolutio
 int cycleTime = ceil(1000.0/(float)maxChangePerSecond*(float)maxChangePerCycle);
 
 // Sweep parameters
-const float minSweepTime =5000; // the minimum time for 1 period of sweep
-const float maxSweepTime = 60000.0; // the maximum time for 1 period of sweep
-const float sweepInputMultiplier = (maxSweepTime-minSweepTime)/180.0; // constant for use in sweep equation that adjusts the input to give values between min and max 
+const unsigned long minSweepTime =5000; // the minimum time for 1 period of sweep
+const unsigned long maxSweepTime = 60000; // the maximum time for 1 period of sweep
+const float sweepInputMultiplier = ((float)maxSweepTime-(float)minSweepTime)/180.0; // constant for use in sweep equation that adjusts the input to give values between min and max 
 
-const int neutralRange = 15; // Range above or below the pot input that corresponds to neutral, means that 520 would still be neutral
+const int neutralRange = 0; // Range above or below the pot input that corresponds to neutral, means that 520 would still be neutral
 
 // Initialize PWM signals
 Servo motor1;
@@ -191,6 +191,17 @@ int sweepOutput(int outputVal) {
   outputVal = map(outputVal, -1000, 1000, 0, 180); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
+
+//int sweepOutput(int inputVal) {
+//  unsigned long time = millis();
+//  unsigned long outputVal = inputVal;
+////  Serial.print("1 ");Serial.println(outputVal);
+//  outputVal = time%maxSweepTime;
+//  Serial.print("2 ");Serial.println(outputVal);
+//  outputVal = map(outputVal, 0, maxSweepTime, 0, 180);
+//  Serial.print("3 ");Serial.println(outputVal);
+//  return outputVal;
+//}
 
 int servoOutput(int outputVal) {
   return outputVal;
