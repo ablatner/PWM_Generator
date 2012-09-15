@@ -4,13 +4,13 @@
 
 // Sets cycle time
 int maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
-int maxChangePerCycle = 1;
+int maxChangePerCycle = 1; // probably should just leave at 1, for max resolution with respect to time
 int cycleTime = ceil(1000.0/(float)maxChangePerSecond*(float)maxChangePerCycle);
 
 // Sweep parameters
-const float minSweepTime =5000;
-const float maxSweepTime = 60000.0;
-const float sweepInputMultiplier = (maxSweepTime-minSweepTime)/180.0;
+const float minSweepTime =5000; // the minimum time for 1 period of sweep
+const float maxSweepTime = 60000.0; // the maximum time for 1 period of sweep
+const float sweepInputMultiplier = (maxSweepTime-minSweepTime)/180.0; // constant for use in sweep equation that adjusts the input to give values between min and max 
 
 const int neutralRange = 15; // Range above or below the pot input that corresponds to neutral, means that 520 would still be neutral
 
@@ -30,11 +30,11 @@ int potVal2 = 512;
 const int outputPin1 = 5;
 const int outputPin2 = 6;
 
-// Stores value after mapping
+// Stores value after mapping, set to 90 because that's neutral
 int mapVal1 = 90;
 int mapVal2 = 90;
 
-// Stores output "angles" for the servo library, set to 90 because that's neutral
+// Stores output "angles", set to 90 because that's neutral
 int outputVal1 = 90;
 int outputVal2 = 90;
 
@@ -45,6 +45,7 @@ int modeSwitch = 0;
 int lastOutput1 = 90;
 int lastOutput2 = 90;
 
+//----------- DEBUGGING STUFF ----------- when in use there can be slight pauses when it outputs, disable for real use
 //// For limiting serial output to a low frequency
 //unsigned long updateLast = 0;
 //unsigned long updateCurrent = 0;
@@ -84,15 +85,15 @@ void setup() {
 void loop() {
   // Gets potentiometer values
   potVal1 = analogRead(potPin1);
-  if ((potVal1-512 < neutralRange) && (-neutralRange < potVal1-512)) // Easily set to neutral
+  if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512)) // Easily set to neutral
     potVal1 = 512;
   potVal2 = analogRead(potPin2);
-  if ((potVal2-512 < neutralRange) && (-neutralRange < potVal2-512))
+  if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512))
     potVal2 = 512;
 
   // Maps potentiometer values to the servo angle from 0 to 180
-  mapVal1 = map(potVal1, 0, 1023, 0, 181);
-  mapVal2 = map(potVal2, 0, 1023, 0, 181);
+  mapVal1 = map(potVal1, 0, 1023, 0, 180);
+  mapVal2 = map(potVal2, 0, 1023, 0, 180);
 
   // Reads mode switch
   modeSwitch = modeSwitchRead(startPin, endPin);
@@ -121,9 +122,9 @@ void loop() {
 }
 
 int modeSwitchRead(int startPin, int endPin) { // Set first and last pins it reads from, iteratively reads from pins between them
-  int modeSwitch = -1; // If returns, -1, read error
+  int modeSwitch = -1; // If returns -1, read error
   for (int iii=startPin; iii<=endPin; iii++) {
-    if (digitalRead(iii) == 0)
+    if (digitalRead(iii) == 0) // switch connects to gnd and there are internal pullups, so when it's switched, it goes low
       modeSwitch = iii;
   }
   return modeSwitch;
@@ -168,7 +169,7 @@ int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
         case sweepMode:
           return sweepOutput(outputVal1);
           break;
-        case sweepReverseMode: // CHANGE TO SWEEP SYNC?
+        case sweepReverseMode:
           return reverseOutput(sweepOutput(outputVal1));
           break;
         case servoMode:
@@ -187,7 +188,7 @@ int reverseOutput(int outputVal) {
 int sweepOutput(int outputVal) {
   float time = millis();
   outputVal = 1000*sin(6.28*time/(minSweepTime+(float)outputVal*sweepInputMultiplier));
-  outputVal = map(outputVal, -1000, 1000, 0, 180);
+  outputVal = map(outputVal, -1000, 1000, 0, 180); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
 
