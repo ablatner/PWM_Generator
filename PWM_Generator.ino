@@ -3,16 +3,17 @@
 #include "Signum.h"
 
 // Sets cycle time
-int maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
-int maxChangePerCycle = 1; // probably should just leave at 1, for max resolution with respect to time
-int cycleTime = ceil(1000.0/(float)maxChangePerSecond*(float)maxChangePerCycle);
+const double maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
+const double maxChangePerCycle = 1; // probably should just leave at 1, for max resolution with respect to time
+const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // take ceiling of result for safety, slower changes; (change/cycle)*(1000ms/second)/(change/second) = ms/cycle
 
 // Sweep parameters
 const unsigned long minSweepTime =5000; // the minimum time for 1 period of sweep
 const unsigned long maxSweepTime = 60000; // the maximum time for 1 period of sweep
-const float sweepInputMultiplier = ((float)maxSweepTime-(float)minSweepTime)/180.0; // constant for use in sweep equation that adjusts the input to give values between min and max 
+// constant for use in sweep equation that adjusts the input to give values between min and max, equivalent to the change in sweep time per degree of pot-turn
+const float sweepInputMultiplier = (float)(maxSweepTime-minSweepTime)/180.0;
 
-const int neutralRange = 0; // Range above or below the pot input that corresponds to neutral, means that 520 would still be neutral
+const int neutralRange = 10; // Range above or below the pot input that corresponds to neutral, means that 512+/- neutral range would still be neutral
 
 // Initialize PWM signals
 Servo motor1;
@@ -21,6 +22,11 @@ Servo motor2;
 // Set analog input pins for potentiometers
 const int potPin1 = 0;
 const int potPin2 = 1;
+
+// Set pin for talon selection
+const int talonPin = 7;
+boolean lastTalonSwitch = false;
+boolean currentTalonSwitch = false;
 
 // Stores raw potentiometer readings, set to 512 because that's neutral
 int potVal1 = 512;
@@ -72,14 +78,15 @@ int lastOutput2 = 90;
 void setup() {
   Serial.begin(9600);
   
-  // Initialize PWM outputs
-  motor1.attach(outputPin1, 678, 2310);
-  motor2.attach(outputPin2, 678, 2310);
-
   // Initialize mode switch input pins, "for loop" uses less memory
   for (int iii=startPin; iii<=endPin; iii++) { // startPin and endPin are from ModePins.h
     pinMode(iii, INPUT_PULLUP);
   }
+  
+  // Initialize talon selection switch
+  pinMode(talonPin, INPUT_PULLUP);
+  lastTalonSwitch = digitalRead(talonPin);
+  currentTalonSwitch = digitalRead(talonPin);
 }
 
 void loop() {
@@ -88,16 +95,29 @@ void loop() {
   if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512)) // Easily set to neutral
     potVal1 = 512;
   potVal2 = analogRead(potPin2);
-  if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512))
+  if ((512-neutralRange < potVal2) && (potVal2 < neutralRange+512))
     potVal2 = 512;
-
+ 
+  // Reads mode switch
+  modeSwitch = modeSwitchRead(startPin, endPin);
+ 
+  // Sets talon mode and pwm ranges
+  currentTalonSwitch = digitalRead(talonPin);
+  if (lastTalonSwitch != currentTalonSwitch) { // checks if talon mode has changed
+    if (currentTalonSwitch) { // talon mode on
+      motor1.attach(outputPin1, 900, 2000);
+      motor1.attach(outputPin2, 900, 2000);
+    }
+    else { // talon mode off, for victors, jaguars, Hitec HS-322HD servos
+      motor1.attach(outputPin1, 678, 2310);
+      motor2.attach(outputPin2, 678, 2310);
+    }
+  }
+ 
   // Maps potentiometer values to the servo angle from 0 to 180
   mapVal1 = map(potVal1, 0, 1023, 0, 180);
   mapVal2 = map(potVal2, 0, 1023, 0, 180);
 
-  // Reads mode switch
-  modeSwitch = modeSwitchRead(startPin, endPin);
-  
   // Sets mode
   outputVal1 = setMode(modeSwitch, mapVal1, mapVal2, 1);
   outputVal2 = setMode(modeSwitch, mapVal1, mapVal2, 2);
@@ -118,12 +138,12 @@ void loop() {
   lastOutput1 = outputVal1;
   lastOutput2 = outputVal2;
 
-  delay(cycleTime);
+  delay(timePerCycle);
 }
 
 int modeSwitchRead(int startPin, int endPin) { // Set first and last pins it reads from, iteratively reads from pins between them
   int modeSwitch = -1; // If returns -1, read error
-  for (int iii=startPin; iii<=endPin; iii++) {
+  for (int iii=endPin; iii<=startPin; iii--) { // start with servo mode, end at independent mode so independent overrides all
     if (digitalRead(iii) == 0) // switch connects to gnd and there are internal pullups, so when it's switched, it goes low
       modeSwitch = iii;
   }
@@ -178,6 +198,8 @@ int setMode(int modeSwitch, int outputVal1, int outputVal2, int outputSelect) {
         default:
           return outputVal2;
       }
+     default:
+       return 90; // returns neutral if improper output selected
   }
 }
 
@@ -187,21 +209,15 @@ int reverseOutput(int outputVal) {
   
 int sweepOutput(int outputVal) {
   float time = millis();
-  outputVal = 1000*sin(6.28*time/(minSweepTime+(float)outputVal*sweepInputMultiplier));
+  // multiply by 1000 before setting to int value because it would be -1, 0, or 1 otherwise and lose value
+  // factor 2pi shrinks period from 2pi to 1
+  // factor 1/(...) extends period 1 to the (minimum time)+(pot-turn)*(change in sweep time per degree of pot-turn) = (time) + (angle)*(time/angle) = time
+  // setting outputVal to 0 gives factor 1/(minSweepTime)
+  // setting outputVal to 180 gives factor 1/(minSweepTime + 180*(maxSweepTime-minSweepTime)/180.0) = 1/(min + max - min) = 1/max
+  outputVal = 1000*sin(time*6.2832/(minSweepTime+(float)outputVal*sweepInputMultiplier));
   outputVal = map(outputVal, -1000, 1000, 0, 180); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
-
-//int sweepOutput(int inputVal) {
-//  unsigned long time = millis();
-//  unsigned long outputVal = inputVal;
-////  Serial.print("1 ");Serial.println(outputVal);
-//  outputVal = time%maxSweepTime;
-//  Serial.print("2 ");Serial.println(outputVal);
-//  outputVal = map(outputVal, 0, maxSweepTime, 0, 180);
-//  Serial.print("3 ");Serial.println(outputVal);
-//  return outputVal;
-//}
 
 int servoOutput(int outputVal) {
   return outputVal;
@@ -213,4 +229,3 @@ int smooth(int outputVal, int lastOutput, int maxChangePerCycle) {
   else
     return lastOutput+sign(outputVal-lastOutput)*maxChangePerCycle;
 }
-
