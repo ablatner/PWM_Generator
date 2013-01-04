@@ -10,8 +10,8 @@ const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // t
 // Sweep parameters
 const unsigned long minSweepTime =5000; // the minimum time for 1 period of sweep
 const unsigned long maxSweepTime = 60000; // the maximum time for 1 period of sweep
-// constant for use in sweep equation that adjusts the input to give values between min and max, equivalent to the change in sweep time per degree of pot-turn
-const float sweepInputMultiplier = (float)(maxSweepTime-minSweepTime)/180.0;
+// constant for use in sweep equation that adjusts the input to give values between min and max, equivalent to the change in sweep time per degree of pot-turn, units time/degree
+const float timeChangePerDegree = (float)(maxSweepTime-minSweepTime)/180.0;
 
 const int neutralRange = 10; // Range above or below the pot input that corresponds to neutral, means that 512+/- neutral range would still be neutral
 
@@ -22,7 +22,9 @@ Servo motor2;
 // Set analog input pins for potentiometers
 const int potPin1 = 0;
 const int potPin2 = 1;
-
+// Set PWM output pins
+const int outputPin1 = 5;
+const int outputPin2 = 6;
 // Set pin for talon selection
 const int talonPin = 7;
 boolean lastTalonSwitch = false;
@@ -31,25 +33,18 @@ boolean currentTalonSwitch = false;
 // Stores raw potentiometer readings, set to 512 because that's neutral
 int potVal1 = 512;
 int potVal2 = 512;
-
-// Set PWM output pins
-const int outputPin1 = 5;
-const int outputPin2 = 6;
-
 // Stores value after mapping, set to 90 because that's neutral
 int mapVal1 = 90;
 int mapVal2 = 90;
-
 // Stores output "angles", set to 90 because that's neutral
 int outputVal1 = 90;
 int outputVal2 = 90;
-
-// Stores setting of mode selections switches
-int modeSwitch = 0;
-
 // For smoothing, set to 90 because that's neutral
 int lastOutput1 = 90;
 int lastOutput2 = 90;
+
+// Stores setting of mode selections switches
+int modeSwitch = 0;
 
 //----------- DEBUGGING STUFF ----------- when in use there can be slight pauses when it outputs, disable for real use
 //// For limiting serial output to a low frequency
@@ -85,22 +80,11 @@ void setup() {
   
   // Initialize talon selection switch
   pinMode(talonPin, INPUT_PULLUP);
-  lastTalonSwitch = digitalRead(talonPin);
   currentTalonSwitch = digitalRead(talonPin);
+  lastTalonSwitch = currentTalonSwitch;
 }
 
-void loop() {
-  // Gets potentiometer values
-  potVal1 = analogRead(potPin1);
-  if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512)) // Easily set to neutral
-    potVal1 = 512;
-  potVal2 = analogRead(potPin2);
-  if ((512-neutralRange < potVal2) && (potVal2 < neutralRange+512))
-    potVal2 = 512;
- 
-  // Reads mode switch
-  modeSwitch = modeSwitchRead(startPin, endPin);
- 
+void loop() {  
   // Sets talon mode and pwm ranges
   currentTalonSwitch = digitalRead(talonPin);
   if (lastTalonSwitch != currentTalonSwitch) { // checks if talon mode has changed
@@ -113,7 +97,18 @@ void loop() {
       motor2.attach(outputPin2, 678, 2310);
     }
   }
- 
+  
+  // Reads mode switch
+  modeSwitch = modeSwitchRead(startPin, endPin);
+
+  // Gets potentiometer values
+  potVal1 = analogRead(potPin1);
+  if ((512-neutralRange < potVal1) && (potVal1 < neutralRange+512)) // Easily set to neutral
+    potVal1 = 512;
+  potVal2 = analogRead(potPin2);
+  if ((512-neutralRange < potVal2) && (potVal2 < neutralRange+512))
+    potVal2 = 512;
+
   // Maps potentiometer values to the servo angle from 0 to 180
   mapVal1 = map(potVal1, 0, 1023, 0, 180);
   mapVal2 = map(potVal2, 0, 1023, 0, 180);
@@ -209,12 +204,12 @@ int reverseOutput(int outputVal) {
   
 int sweepOutput(int outputVal) {
   float time = millis();
-  // multiply by 1000 before setting to int value because it would be -1, 0, or 1 otherwise and lose value
+  // multiply by 1000 before setting to int value because it would otherwise round to -1, 0, or 1 and lose value
   // factor 2pi shrinks period from 2pi to 1
-  // factor 1/(...) extends period 1 to the (minimum time)+(pot-turn)*(change in sweep time per degree of pot-turn) = (time) + (angle)*(time/angle) = time
+  // factor 1/(...) extends period from 1 to (minimum time)+(pot angle)*(change in sweep time per degree of pot-turn) = (time) + (angle)*(time/angle) = time
   // setting outputVal to 0 gives factor 1/(minSweepTime)
   // setting outputVal to 180 gives factor 1/(minSweepTime + 180*(maxSweepTime-minSweepTime)/180.0) = 1/(min + max - min) = 1/max
-  outputVal = 1000*sin(time*6.2832/(minSweepTime+(float)outputVal*sweepInputMultiplier));
+  outputVal = 1000*sin(time*6.2832/(minSweepTime+(float)outputVal*timeChangePerDegree));
   outputVal = map(outputVal, -1000, 1000, 0, 180); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
@@ -224,7 +219,7 @@ int servoOutput(int outputVal) {
 }
 
 int smooth(int outputVal, int lastOutput, int maxChangePerCycle) {
-  if (fabs(outputVal-lastOutput) < maxChangePerCycle)
+  if (-maxChangePerCycle < (outputVal-lastOutput) < maxChangePerCycle)
     return outputVal;
   else
     return lastOutput+sign(outputVal-lastOutput)*maxChangePerCycle;
