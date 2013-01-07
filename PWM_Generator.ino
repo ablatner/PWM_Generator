@@ -8,7 +8,7 @@ const double maxChangePerCycle = 1; // probably should just leave at 1, for max 
 const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // take ceiling of result for safety, slower changes; (change/cycle)*(1000ms/second)/(change/second) = ms/cycle
 
 // Sweep parameters
-const unsigned long minSweepTime =5000; // the minimum time for 1 period of sweep
+const unsigned long minSweepTime = 3000; // the minimum time for 1 period of sweep
 const unsigned long maxSweepTime = 60000; // the maximum time for 1 period of sweep
 // constant for use in sweep equation that adjusts the input to give values between min and max, equivalent to the change in sweep time per degree of pot-turn, units time/degree
 const float timeChangePerDegree = (float)(maxSweepTime-minSweepTime)/180.0;
@@ -75,13 +75,12 @@ void setup() {
   Serial.begin(9600);
   
   // Initialize mode switch input pins, "for loop" uses less memory
-  for (int iii=modeStartPin; iii<=modeEndPin; iii++) { // startPin and endPin are from ModePins.h
+  for (int iii=talonPin; iii<=modeEndPin; iii++) { // startPin and endPin are from ModePins.h
     pinMode(iii, INPUT_PULLUP);
   }
   pinMode(13, INPUT);
   
   // Initialize talon selection switch
-  pinMode(talonPin, INPUT_PULLUP);
   currentTalonSwitch = digitalRead(talonPin);
   lastTalonSwitch = !currentTalonSwitch; // opposite so it thinks it's changed and it sets the mode
 }
@@ -113,8 +112,8 @@ void loop() {
     potVal2 = 512;
 
   // Maps potentiometer values to the servo angle from 0 to 180
-  mapVal1 = map(potVal1, 0, 1023, 0, 180);
-  mapVal2 = map(potVal2, 0, 1023, 0, 180);
+  mapVal1 = map(potVal1, 0, 1023, 0, 181);
+  mapVal2 = map(potVal2, 0, 1023, 0, 181);
 
   // Sets mode
   outputVal1 = setMode(modeSwitch, mapVal1, mapVal2, 1);
@@ -217,7 +216,7 @@ int sweepOutput(int outputVal) {
   // setting outputVal to 0 gives factor 1/(minSweepTime)
   // setting outputVal to 180 gives factor 1/(minSweepTime + 180*(maxSweepTime-minSweepTime)/180.0) = 1/(min + max - min) = 1/max
   outputVal = 1000*sin(time*6.2832/(minSweepTime+(float)outputVal*timeChangePerDegree));
-  outputVal = map(outputVal, -1000, 1000, 0, 180); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
+  outputVal = map(outputVal, -1000, 1000, 0, 181); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
 
