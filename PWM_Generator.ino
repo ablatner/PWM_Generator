@@ -3,7 +3,7 @@
 #include "Signum.h"
 
 // Sets cycle time
-const double maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
+const double maxChangePerSecond = 120; // max motor speed change per second on the 0-180 scale
 const double maxChangePerCycle = 1; // probably should just leave at 1, for max resolution with respect to time
 const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // take ceiling of result for safety, slower changes; (change/cycle)*(1000ms/second)/(change/second) = ms/cycle
 
@@ -25,10 +25,10 @@ const int potPin2 = 1;
 // Set PWM output pins
 const int outputPin1 = 5;
 const int outputPin2 = 6;
-// Set pin for talon selection
-const int talonPin = 7;
-boolean lastTalonSwitch = false;
-boolean currentTalonSwitch = false;
+
+// keeps track of Talon switch states
+boolean currentTalonSwitch;
+boolean lastTalonSwitch;
 
 // Stores raw potentiometer readings, set to 512 because that's neutral
 int potVal1 = 512;
@@ -44,28 +44,29 @@ int lastOutput1 = 90;
 int lastOutput2 = 90;
 
 // Stores setting of mode selections switches
-int modeSwitch = 0;
+int modeSwitch = independentMode;
 
-//----------- DEBUGGING STUFF ----------- when in use there can be slight pauses when it outputs, disable for real use
+////----------- DEBUGGING STUFF ----------- when in use there can be slight pauses when it outputs, disable for real use
 //// For limiting serial output to a low frequency
 //unsigned long updateLast = 0;
-//unsigned long updateCurrent = 0;
 //int serialDelay = 400; // Waits this many milliseconds between data outputs
 //
 //// Prints both raw analog values and actual output values over serial, for debugging
 //// Updates if current time minus last time is greater than the delay time
 //// Only resets delay timer when "resetDelayTimer" is true
 //// Set which motor, input, and output number is displayed with "textNumber"
-//unsigned long printAnalog(int analogInput, int servoAngle, int modeSwitch, unsigned long updateCurrent, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber) {
-//  updateCurrent = millis();
+//unsigned long printAnalog(int analogInput, int servoAngle, int modeSwitch, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber, boolean currentTalonSwitch) {
+//  unsigned long updateCurrent = millis();
 //  if (updateCurrent - updateLast > Delay) {
-////    Serial.print("-");Serial.println(textNumber);
-////    Serial.print("M ");Serial.println(modeSwitch);
+//    Serial.print("-- ");Serial.println(textNumber);
+//    Serial.print("T ");Serial.println(currentTalonSwitch);
+//    Serial.print("M ");Serial.println(modeSwitch);
 //    Serial.print("I ");Serial.println(analogInput);
-////    Serial.print("O ");Serial.println(servoAngle);
+//    Serial.print("O ");Serial.println(servoAngle);
 //    Serial.println();
-//    if (resetDelayTimer == 1)
+//    if (resetDelayTimer == 1) {
 //      updateLast = updateCurrent;
+//    }
 //  }
 //  return updateLast;
 //}
@@ -74,14 +75,15 @@ void setup() {
   Serial.begin(9600);
   
   // Initialize mode switch input pins, "for loop" uses less memory
-  for (int iii=startPin; iii<=endPin; iii++) { // startPin and endPin are from ModePins.h
+  for (int iii=modeStartPin; iii<=modeEndPin; iii++) { // startPin and endPin are from ModePins.h
     pinMode(iii, INPUT_PULLUP);
   }
+  pinMode(13, INPUT);
   
   // Initialize talon selection switch
   pinMode(talonPin, INPUT_PULLUP);
   currentTalonSwitch = digitalRead(talonPin);
-  lastTalonSwitch = currentTalonSwitch;
+  lastTalonSwitch = !currentTalonSwitch; // opposite so it thinks it's changed and it sets the mode
 }
 
 void loop() {  
@@ -97,9 +99,10 @@ void loop() {
       motor2.attach(outputPin2, 678, 2310);
     }
   }
+  lastTalonSwitch = currentTalonSwitch;
   
   // Reads mode switch
-  modeSwitch = modeSwitchRead(startPin, endPin);
+  modeSwitch = modeSwitchRead(modeStartPin, modeEndPin);
 
   // Gets potentiometer values
   potVal1 = analogRead(potPin1);
@@ -122,8 +125,8 @@ void loop() {
   outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
 
   // Prints data for debugging
-//  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateCurrent, updateLast, serialDelay, 1, 1);
-//  updateLast = printAnalog(potVal2, outputVal2, modeSwitch, updateCurrent, updateLast, serialDelay, 1, 2);
+//  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateLast, serialDelay, 0, 1, currentTalonSwitch);
+//  updateLast = printAnalog(potVal2, outputVal2, modeSwitch, updateLast, serialDelay, 1, 2, currentTalonSwitch);
 
   // Writes output values
   motor1.write(outputVal1);
@@ -138,9 +141,13 @@ void loop() {
 
 int modeSwitchRead(int startPin, int endPin) { // Set first and last pins it reads from, iteratively reads from pins between them
   int modeSwitch = -1; // If returns -1, read error
-  for (int iii=endPin; iii<=startPin; iii--) { // start with servo mode, end at independent mode so independent overrides all
-    if (digitalRead(iii) == 0) // switch connects to gnd and there are internal pullups, so when it's switched, it goes low
+  for (int iii=startPin; iii<=endPin; iii++) { // start with servo mode, end at independent mode so independent overrides all
+    if (digitalRead(iii) == 0) { // switch connects to gnd and there are internal pullups, so when it's switched, it goes low
       modeSwitch = iii;
+    }
+  }
+  if (digitalRead(13) == 1) { // because pin 13 has the internal resistor and LED, which acts as a pull down
+    modeSwitch = 13;
   }
   return modeSwitch;
 }
