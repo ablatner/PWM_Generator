@@ -3,7 +3,7 @@
 #include "Signum.h"
 
 // Sets cycle time
-const double maxChangePerSecond = 120; // max motor speed change per second on the 0-180 scale
+const double maxChangePerSecond = 180; // max motor speed change per second on the 0-180 scale
 const double maxChangePerCycle = 1; // probably should just leave at 1, for max resolution with respect to time
 const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // take ceiling of result for safety, slower changes; (change/cycle)*(1000ms/second)/(change/second) = ms/cycle
 
@@ -11,7 +11,7 @@ const int timePerCycle = ceil(maxChangePerCycle*1000.0/maxChangePerSecond); // t
 const unsigned long minSweepTime = 3000; // the minimum time for 1 period of sweep
 const unsigned long maxSweepTime = 60000; // the maximum time for 1 period of sweep
 // constant for use in sweep equation that adjusts the input to give values between min and max, equivalent to the change in sweep time per degree of pot-turn, units time/degree
-const float timeChangePerDegree = (float)(maxSweepTime-minSweepTime)/180.0;
+const double timeChangePerDegree = (double)(maxSweepTime-minSweepTime)/180.0;
 
 const int neutralRange = 10; // Range above or below the pot input that corresponds to neutral, means that 512+/- neutral range would still be neutral
 
@@ -42,6 +42,8 @@ int outputVal2 = 90;
 // For smoothing, set to 90 because that's neutral
 int lastOutput1 = 90;
 int lastOutput2 = 90;
+// general time
+unsigned long time = 0;
 
 // Stores setting of mode selections switches
 int modeSwitch = independentMode;
@@ -56,8 +58,7 @@ int modeSwitch = independentMode;
 //// Only resets delay timer when "resetDelayTimer" is true
 //// Set which motor, input, and output number is displayed with "textNumber"
 //unsigned long printAnalog(int analogInput, int servoAngle, int modeSwitch, unsigned long updateLast, int Delay, boolean resetDelayTimer, int textNumber, boolean currentTalonSwitch) {
-//  unsigned long updateCurrent = millis();
-//  if (updateCurrent - updateLast > Delay) {
+//  if (time - updateLast > Delay) {
 //    Serial.print("-- ");Serial.println(textNumber);
 //    Serial.print("T ");Serial.println(currentTalonSwitch);
 //    Serial.print("M ");Serial.println(modeSwitch);
@@ -65,7 +66,7 @@ int modeSwitch = independentMode;
 //    Serial.print("O ");Serial.println(servoAngle);
 //    Serial.println();
 //    if (resetDelayTimer == 1) {
-//      updateLast = updateCurrent;
+//      updateLast = time;
 //    }
 //  }
 //  return updateLast;
@@ -86,6 +87,8 @@ void setup() {
 }
 
 void loop() {  
+  time = millis();
+  
   // Sets talon mode and pwm ranges
   currentTalonSwitch = digitalRead(talonPin);
   if (lastTalonSwitch != currentTalonSwitch) { // checks if talon mode has changed
@@ -120,8 +123,8 @@ void loop() {
   outputVal2 = setMode(modeSwitch, mapVal1, mapVal2, 2);
 
   // Output smoothing
-  outputVal1 = smooth(outputVal1, lastOutput1, maxChangePerCycle);
-  outputVal2 = smooth(outputVal2, lastOutput2, maxChangePerCycle);
+  outputVal1 = smooth(outputVal1, lastOutput1);
+  outputVal2 = smooth(outputVal2, lastOutput2);
 
   // Prints data for debugging
 //  updateLast = printAnalog(potVal1, outputVal1, modeSwitch, updateLast, serialDelay, 0, 1, currentTalonSwitch);
@@ -209,13 +212,12 @@ int reverseOutput(int outputVal) {
 }
   
 int sweepOutput(int outputVal) {
-  float time = millis();
   // multiply by 1000 before setting to int value because it would otherwise round to -1, 0, or 1 and lose value
   // factor 2pi shrinks period from 2pi to 1
   // factor 1/(...) extends period from 1 to (minimum time)+(pot angle)*(change in sweep time per degree of pot-turn) = (time) + (angle)*(time/angle) = time
   // setting outputVal to 0 gives factor 1/(minSweepTime)
   // setting outputVal to 180 gives factor 1/(minSweepTime + 180*(maxSweepTime-minSweepTime)/180.0) = 1/(min + max - min) = 1/max
-  outputVal = 1000*sin(time*6.2832/(minSweepTime+(float)outputVal*timeChangePerDegree));
+  outputVal = 1000*sin((double)time*6.2832/((double)minSweepTime+(double)outputVal*timeChangePerDegree));
   outputVal = map(outputVal, -1000, 1000, 0, 181); // from +- 1000 because it can only take ints, and sin() makes -1 to 1
   return outputVal;
 }
@@ -224,9 +226,11 @@ int servoOutput(int outputVal) {
   return outputVal;
 }
 
-int smooth(int outputVal, int lastOutput, int maxChangePerCycle) {
-  if (-maxChangePerCycle < (outputVal-lastOutput) < maxChangePerCycle)
+int smooth(int outputVal, int lastOutput) {
+  if (-maxChangePerCycle < (outputVal-lastOutput) < maxChangePerCycle) {
     return outputVal;
-  else
+  }
+  else {
     return lastOutput+sign(outputVal-lastOutput)*maxChangePerCycle;
+  }
 }
