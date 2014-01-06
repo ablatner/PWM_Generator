@@ -73,7 +73,7 @@ int modeSwitch = independentMode;
 //}
 
 void setup() {
-  Serial.begin(9600);
+//  Serial.begin(9600); // Uncomment when using the debug code
   
   // Initialize mode switch input pins, "for loop" uses less memory
   for (int iii=talonPin; iii<=modeEndPin; iii++) { // startPin and endPin are from ModePins.h
